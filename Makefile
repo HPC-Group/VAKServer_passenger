@@ -1,4 +1,4 @@
-NAME = visanalyticskit/passenger
+NAME = visanalyticskit/vakserver_passenger
 VERSION = 0.9.18
 
 .PHONY: all build_all \
