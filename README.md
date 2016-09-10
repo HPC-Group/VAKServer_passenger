@@ -34,7 +34,10 @@ Why is this image called "passenger"? It's to represent the ease: you just have 
    * [Using Redis](#redis)
    * [Using memcached](#memcached)
    * [Additional daemons](#additional_daemons)
-   * [Selecting a default Ruby version](#selecting_default_ruby)
+   * [Using Ruby](#using_ruby)
+     * [Selecting a default Ruby version](#selecting_default_ruby)
+     * [Running a command with a specific Ruby version](#running_command_with_specific_ruby_version)
+     * [Default wrapper scripts](default_ruby_wrapper_scripts)
    * [Running scripts during container startup](#running_startup_scripts)
    * [Upgrading the operating system inside the container](#upgrading_os)
    * [Upgrading Passenger to the latest version](#upgrading_passenger)
@@ -54,6 +57,8 @@ Why is this image called "passenger"? It's to represent the ease: you just have 
    * [Logs](#logs)
  * [Switching to Phusion Passenger Enterprise](#enterprise)
  * [Building the image yourself](#building)
+ * [FAQ](#faq)
+   * [Why is RVM used to manage Ruby versions?](#why_rvm)
  * [Conclusion](#conclusion)
 
 ---------------------------------------
@@ -79,7 +84,7 @@ Why use passenger-docker instead of doing everything yourself in Dockerfile?
 
 Basics (learn more at [baseimage-docker](http://phusion.github.io/baseimage-docker/)):
 
- * Ubuntu 14.04 LTS as base system.
+ * Ubuntu 16.04 LTS as base system.
  * A **correct** init process ([learn more](http://blog.phusion.nl/2015/01/20/docker-and-the-pid-1-zombie-reaping-problem/)).
  * Fixes APT incompatibilities with Docker.
  * syslog-ng.
@@ -88,18 +93,18 @@ Basics (learn more at [baseimage-docker](http://phusion.github.io/baseimage-dock
 
 Language support:
 
- * Ruby 1.9.3, 2.0.0, 2.1.6, and 2.2.2; JRuby 9.0.0.0.
-   * 2.2.2 is configured as the default.
-   * MRI Ruby is installed through [the Brightbox APT repository](https://launchpad.net/~brightbox/+archive/ruby-ng). We're not using RVM!
+ * Ruby 2.0.0, 2.1.9, 2.2.5 and 2.3.1; JRuby 9.1.2.0.
+   * RVM is used to manage Ruby versions. [Why RVM?](#why_rvm)
+   * 2.3.1 is configured as the default.
    * JRuby is installed from source, but we register an APT entry for it.
-   * JRuby uses OpenJDK 8 from [the openjdk-r PPA](https://launchpad.net/~openjdk-r/+archive/ubuntu/ppa).
+   * JRuby uses OpenJDK 8.
  * Python 2.7 and Python 3.4.
- * Node.js 0.12, through [NodeSource's APT repository](https://nodesource.com/).
+ * Node.js 4.2.6.
  * A build system, git, and development headers for many popular libraries, so that the most popular Ruby, Python and Node.js native extensions can be compiled without problems.
 
 Web server and application server:
 
- * Nginx 1.6. Disabled by default.
+ * Nginx 1.10. Disabled by default.
  * [Phusion Passenger 5](https://www.phusionpassenger.com/). Disabled by default (because it starts along with Nginx).
    * This is a fast and lightweight tool for simplifying web application integration into Nginx.
    * It adds many production-grade features, such as process monitoring, administration and status inspection.
@@ -108,8 +113,8 @@ Web server and application server:
 
 Auxiliary services and tools:
 
- * Redis 2.6, through [Rowan's Redis PPA](https://launchpad.net/~rwky/+archive/redis). Disabled by default.
- * Memcached. Disabled by default.
+ * Redis 3.0. Not installed by default.
+ * Memcached. Not installed by default.
 
 <a name="memory_efficiency"></a>
 ### Memory efficiency
@@ -123,15 +128,15 @@ Passenger-docker consists of several images, each one tailor made for a specific
 
 **Ruby images**
 
- * `phusion/passenger-ruby19` - Ruby 1.9.
  * `phusion/passenger-ruby20` - Ruby 2.0.
  * `phusion/passenger-ruby21` - Ruby 2.1.
  * `phusion/passenger-ruby22` - Ruby 2.2.
- * `phusion/passenger-jruby90` - JRuby 9.0.0.0.
+ * `phusion/passenger-ruby23` - Ruby 2.3.
+ * `phusion/passenger-jruby91` - JRuby 9.1.2.0.
 
 **Node.js and Meteor images**
 
- * `phusion/passenger-nodejs` - Node.js 0.11.
+ * `phusion/passenger-nodejs` - Node.js 4.2.6.
 
 **Other images**
 
@@ -155,7 +160,7 @@ You don't have to download anything manually. The above command will automatical
 <a name="getting_started"></a>
 ### Getting started
 
-There are several images, e.g. `phusion/passenger-ruby21` and `phusion/passenger-nodejs`. Choose the one you want. See [Image variants](#image_variants).
+There are several images, e.g. `phusion/passenger-ruby22` and `phusion/passenger-nodejs`. Choose the one you want. See [Image variants](#image_variants).
 
 So put the following in your Dockerfile:
 
@@ -165,11 +170,11 @@ So put the following in your Dockerfile:
     # a list of version numbers.
     FROM phusion/passenger-full:<VERSION>
     # Or, instead of the 'full' variant, use one of these:
-    #FROM phusion/passenger-ruby19:<VERSION>
     #FROM phusion/passenger-ruby20:<VERSION>
     #FROM phusion/passenger-ruby21:<VERSION>
     #FROM phusion/passenger-ruby22:<VERSION>
-    #FROM phusion/passenger-jruby90:<VERSION>
+    #FROM phusion/passenger-ruby23:<VERSION>
+    #FROM phusion/passenger-jruby91:<VERSION>
     #FROM phusion/passenger-nodejs:<VERSION>
     #FROM phusion/passenger-customizable:<VERSION>
 
@@ -185,11 +190,11 @@ So put the following in your Dockerfile:
     #   Build system and git.
     #RUN /pd_build/utilities.sh
     #   Ruby support.
-    #RUN /pd_build/ruby1.9.sh
-    #RUN /pd_build/ruby2.0.sh
-    #RUN /pd_build/ruby2.1.sh
-    #RUN /pd_build/ruby2.2.sh
-    #RUN /pd_build/jruby9.0.sh
+    #RUN /pd_build/ruby-2.0.*.sh
+    #RUN /pd_build/ruby-2.1.*.sh
+    #RUN /pd_build/ruby-2.2.*.sh
+    #RUN /pd_build/ruby-2.3.*.sh
+    #RUN /pd_build/jruby-9.1.*.sh
     #   Python support.
     #RUN /pd_build/python.sh
     #   Node.js and Meteor support.
@@ -239,11 +244,11 @@ You can add a virtual host entry (`server` block) by placing a .conf file in the
         passenger_user app;
 
         # If this is a Ruby app, specify a Ruby version:
+        passenger_ruby /usr/bin/ruby2.3;
+        # For Ruby 2.2
+        passenger_ruby /usr/bin/ruby2.2;
+        # For Ruby 2.1
         passenger_ruby /usr/bin/ruby2.1;
-        # For Ruby 2.0
-        passenger_ruby /usr/bin/ruby2.0;
-        # For Ruby 1.9.3 (you can ignore the "1.9.1" suffix)
-        #passenger_ruby /usr/bin/ruby1.9.1;
     }
 
     # Dockerfile:
@@ -376,21 +381,60 @@ Note that the shell script must run the daemon **without letting it daemonize/fo
 
 **Tip**: If you're thinking about running your web app, consider deploying it on Passenger instead of on runit. Passenger relieves you from even having to write a shell script, and adds all sorts of useful production features like process scaling, introspection, etc. These are not available when you're only using runit.
 
+<a name="using_ruby"></a>
+### Using Ruby
+
+We use [RVM](https://rvm.io/) to install and to manage Ruby interpreters. Because of this there are some special considerations you need to know, particularly when you are using the `passenger-full` image which contains multiple Ruby versions installed in parallel. You can learn more about RVM at the RVM website, but this section will teach you its basic usage.
+
 <a name="selecting_default_ruby"></a>
-### Selecting a default Ruby version
+#### Selecting a default Ruby version
 
-The default Ruby (what the `/usr/bin/ruby` command executes) is the latest Ruby version that you've chosen to install. You can use `ruby-switch` to select a different version as default.
+The default Ruby (what the `/usr/bin/ruby` command executes) is the latest Ruby version that you've chosen to install. You can use RVM select a different version as default.
 
-    # Ruby 1.9.3 (you can ignore the "1.9.1" suffix)
-    RUN ruby-switch --set ruby1.9.1
-    # Ruby 2.0
-    RUN ruby-switch --set ruby2.0
-    # Ruby 2.1
-    RUN ruby-switch --set ruby2.1
-    # Ruby 2.2
-    RUN ruby-switch --set ruby2.2
-    # JRuby
-    RUN ruby-switch --set jruby
+    # Ruby 2.0.0
+    RUN bash -lc 'rvm --default use ruby-2.0.0'
+    # Ruby 2.1.9
+    RUN bash -lc 'rvm --default use ruby-2.1.9'
+    # Ruby 2.2.5
+    RUN bash -lc 'rvm --default use ruby-2.2.5'
+    # Ruby 2.3.1
+    RUN bash -lc 'rvm --default use ruby-2.3.1'
+    # JRuby 9.1.2.0
+    RUN bash -lc 'rvm --default use jruby-9.1.2.0'
+
+Learn more: [RVM: Setting the default Ruby](https://rvm.io/rubies/default).
+
+<a name="running_command_with_specific_ruby_version"></a>
+#### Running a command with a specific Ruby version
+
+You can run any command with a specific Ruby version by prefixing it with `rvm-exec <IDENTIFIER>`. For example:
+
+    $ rvm-exec 2.3.1 ruby -v
+    ruby 2.3.1
+    $ rvm-exec 2.2.5 ruby -v
+    ruby 2.2.5
+
+More examples, but with Bundler instead:
+
+    # This runs 'bundle install' using Ruby 2.3.1
+    rvm-exec 2.3.1 bundle install
+
+    # This runs 'bundle install' using Ruby 2.2.5
+    rvm-exec 2.2.5 bundle install
+
+<a name="default_ruby_wrapper_scripts"></a>
+#### Default wrapper scripts
+
+Rubies are installed by RVM to /usr/local/rvm. Interactive and login Bash shells load the RVM environment, which ensures that the appropriate directories under /usr/local/rvm are in PATH.
+
+But this means that if you invoke a command without going through an interactive and login Bash shell (e.g. directly using `docker exec`) then the RVM environment won't be loaded. In order to make Ruby work even in this case, Passenger-docker includes a bunch of wrapper scripts:
+
+ * /usr/bin/ruby
+ * /usr/bin/rake
+ * /usr/bin/gem
+ * /usr/bin/bundle
+
+These wrapper scripts execute the respective command through `rvm-exec` using the default Ruby interpreter.
 
 <a name="running_startup_scripts"></a>
 ### Running scripts during container startup
@@ -415,7 +459,7 @@ The following example shows how you can add a startup script. This script simply
 <a name="upgrading_os"></a>
 ### Upgrading the operating system inside the container
 
-passenger-docker images contain an Ubuntu 14.04 operating system. You may want to update this OS from time to time, for example to pull in the latest security updates. OpenSSL is a notorious example. Vulnerabilities are discovered in OpenSSL on a regular basis, so you should keep OpenSSL up-to-date as much as you can.
+passenger-docker images contain an Ubuntu 16.04 operating system. You may want to update this OS from time to time, for example to pull in the latest security updates. OpenSSL is a notorious example. Vulnerabilities are discovered in OpenSSL on a regular basis, so you should keep OpenSSL up-to-date as much as you can.
 
 While we release passenger-docker images with the latest OS updates from time to time, you do not have to rely on us. You can update the OS inside passenger-docker images yourself, and it is recommend that you do this instead of waiting for us.
 
@@ -574,7 +618,7 @@ Passenger-docker disables the SSH server by default. Add the following to your D
 <a name="ssh_keys"></a>
 #### About SSH keys
 
-First, you must ensure that you have the right SSH keys installed inside the container. By default, no keys are installed, so nobody can login. For convenience reasons, we provide [a pregenerated, insecure key](https://github.com/phusion/baseimage-docker/blob/master/image/insecure_key) [(PuTTY format)](https://github.com/phusion/baseimage-docker/blob/master/image/insecure_key.ppk) that you can easily enable. However, please be aware that using this key is for convenience only. It does not provide any security because this key (both the public and the private side) is publicly available. **In production environments, you should use your own keys**.
+First, you must ensure that you have the right SSH keys installed inside the container. By default, no keys are installed, so nobody can login. For convenience reasons, we provide [a pregenerated, insecure key](https://raw.githubusercontent.com/phusion/baseimage-docker/master/image/services/sshd/keys/insecure_key) [(PuTTY format)](https://raw.githubusercontent.com/phusion/baseimage-docker/master/image/services/sshd/keys/insecure_key.ppk) that you can easily enable. However, please be aware that using this key is for convenience only. It does not provide any security because this key (both the public and the private side) is publicly available. **In production environments, you should use your own keys**.
 
 <a name="using_the_insecure_key_for_one_container_only"></a>
 #### Using the insecure key for one container only
@@ -596,7 +640,7 @@ Once you have the ID, look for its IP address with:
 Now that you have the IP address, you can use SSH to login to the container, or to execute a command inside it:
 
     # Download the insecure private key
-    curl -o insecure_key -fSL https://github.com/phusion/baseimage-docker/raw/master/image/insecure_key
+    curl -o insecure_key -fSL https://raw.githubusercontent.com/phusion/baseimage-docker/master/image/services/sshd/keys/insecure_key
     chmod 600 insecure_key
 
     # Login to the container
@@ -716,11 +760,11 @@ Start a virtual machine with Docker in it. You can use the Vagrantfile that we'v
 
 Build one of the images:
 
-    make build_ruby19
     make build_ruby20
     make build_ruby21
     make build_ruby22
-    make build_jruby90
+    make build_ruby23
+    make build_jruby91
     make build_nodejs
     make build_customizable
     make build_full
@@ -728,6 +772,44 @@ Build one of the images:
 If you want to call the resulting image something else, pass the NAME variable, like this:
 
     make build NAME=joe/passenger
+
+<a name="faq"></a>
+## FAQ
+
+<a name="why_rvm"></a>
+### Why is RVM used to manage Ruby versions?
+
+For one, it is popular. At the moment of writing (July 2016), it is the most popular Ruby version manager. But see also the questions and answers below.
+
+#### Why are you not using rbenv or chruby?
+
+In summary:
+
+ * We have found RVM to be much more user friendly than rbenv and chruby.
+ * RVM supplies precompiled binaries, while rbenv and chruby only support compiling Ruby from source.
+ * Installing Ruby from Brightbox's APT repository caused too many problems. We used Brightbox's APT repository in the past, but we concluded that it is not the way to go forward.
+
+Rbenv and chruby's main value proposition is that they are "simple". Indeed, they are simpler in implementation (fewer lines of code) than RVM, but they are not simpler to use. Rbenv and chruby are built on the Unix "do one thing only" philosophy. While this is sound, it is not necessarily the behavior that users want: I have seen many users struggling with basic rbenv/chruby usage because of lack of understanding of environment variables, or not having installed the right dependencies. Many users do not understand how the system is supposed to function and what all the different parts are, so doing one thing only may not be what they need. In such a case the simplicity ends up being more of a liability than an asset. It's like selling a car engine, frame and interior separately, while most consumers want an entire car.
+
+RVM is built around a more "holistic" philosophy, if you will. It tries harder to be friendly to users who may not necessarily understand how everything works, for example by automatically installing a bash profile entry, by automatically installing necessary dependencies.
+
+Another critique of RVM is that it is complicated and causes problems. This has not been our experience: perhaps this was the case in the past, but we have found RVM to be quite stable.
+
+#### Why don't you just install Ruby manually from source?
+
+By installing Ruby manually from source, we are just reinventing some of the functionality provided by a real Ruby version manager such as RVM, so we may as well use one to save ourselves time. There is no reason not to use RVM: it only occupies 5 MB of space.
+
+#### Why are you not using the Brightbox's APT repository?
+
+The Brightbox APT repository contains packages for multiple Ruby versions, which can be installed side-by-side. At first, this seems like the perfect solution. And indeed, passenger-docker used to use the Brightbox APT repository.
+
+Unfortunately, we have found that it is much harder to make the different Rubies play nice with each other than it should be. Despite being installable side-to-side, they still conflict with each other. The most notable problem is that all Rubies' RubyGems install binwrappers to /usr/local/bin, but binwrappers generated by different Ruby versions may not be compatible with each other.
+
+RVM provides much better isolation between different Ruby versions.
+
+#### Why don't you just install Ruby from Ubuntu's APT repository?
+
+Because we need to support Ruby versions not available from Ubuntu's APT repository. Besides, Ubuntu (and Debian) are notorious for being slow with updating Ruby packages. By the time the next Ruby version is released, we will have to wait until the next Ubuntu LTS version before we can use it.
 
 <a name="conclusion"></a>
 ## Conclusion

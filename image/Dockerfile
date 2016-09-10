@@ -1,4 +1,4 @@
-FROM visanalyticskit/vakserver_phusion:0.9.18
+FROM visanalyticskit/vakserver_phusion:0.9.19
 MAINTAINER Phusion <info@phusion.nl>
 
 ADD . /pd_build
