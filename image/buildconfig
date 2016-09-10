@@ -51,3 +51,5 @@ function create_rvm_wrapper_script()
 	echo exec /usr/local/rvm/bin/rvm-exec "$rvm_id" "$command" '"$@"' >> "/usr/bin/$name"
 	chmod +x "/usr/bin/$name"
 }
+nodejs=1
+final=1
